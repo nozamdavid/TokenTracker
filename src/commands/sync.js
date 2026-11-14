@@ -12,6 +12,10 @@ const { readSqliteJsonRows } = require("../lib/sqlite-reader");
 const { resolveInstallPaths, resolveZcodeNativeDbPath, resolveMimoNativeDbPath, ensureFlatCursor } = require("../lib/install-resolver");
 const { multiInstallParse, mergeBothFileSources } = require("../lib/multi-install-parser");
 const { resolveDumateDbPaths, parseDumateIncremental } = require("../lib/dumate");
+const {
+  resolveT3AntigravityDbPaths,
+  parseT3AntigravityIncremental,
+} = require("../lib/t3-antigravity");
 const wsl = require("../lib/wsl-probe");
 const {
   ensureDir,
@@ -1371,9 +1375,48 @@ async function cmdSync(argv, context = {}) {
       }
     }
 
+    if (sourceAllowed("antigravity")) {
+      const t3AntigravityDbPaths = resolveT3AntigravityDbPaths({
+        home,
+        env: process.env,
+      });
+      if (t3AntigravityDbPaths.length > 0) {
+        if (progress?.enabled) {
+          progress.start(
+            `Parsing Antigravity (T3) ${renderBar(0)} 0/${formatNumber(t3AntigravityDbPaths.length)} files | buckets 0`,
+          );
+        }
+        try {
+          const t3AntigravityResult = await parseT3AntigravityIncremental({
+            dbPaths: t3AntigravityDbPaths,
+            cursors,
+            queuePath,
+            projectQueuePath,
+            onProgress: (p) => {
+              if (!progress?.enabled) return;
+              const pct = p.total > 0 ? p.index / p.total : 1;
+              progress.update(
+                `Parsing Antigravity (T3) ${renderBar(pct)} ${formatNumber(p.index)}/${formatNumber(p.total)} files | buckets ${formatNumber(
+                  p.bucketsQueued,
+                )}`,
+              );
+            },
+          });
+          antigravityResult.filesProcessed += t3AntigravityResult.filesProcessed || 0;
+          antigravityResult.eventsAggregated += t3AntigravityResult.eventsAggregated || 0;
+          antigravityResult.bucketsQueued += t3AntigravityResult.bucketsQueued || 0;
+          antigravityResult.projectBucketsQueued =
+            (antigravityResult.projectBucketsQueued || 0) +
+            (t3AntigravityResult.projectBucketsQueued || 0);
+        } catch (err) {
+          warnProviderParseFailure("Antigravity", err, opts);
+        }
+      }
+    }
+
     let opencodeResult = { filesProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
     if (sourceAllowed("opencode")) {
-      const opencodeStorageNativeValue = process.env.OPENCODE_HOME || path.join(xdgDataHome, "opencode");
+      const opencodeStorageNativeValue = process.env.OPENCODE_DATA_DIR || process.env.OPENCODE_HOME || path.join(xdgDataHome, "opencode");
       const wslOpencodeStorageDir = process.platform === "win32" && wsl.shouldProbeWsl(process.env)
         ? wsl.discoverWslHome(".local/share/opencode")
         : null;
@@ -1382,7 +1425,7 @@ async function cmdSync(argv, context = {}) {
         wslValue: wslOpencodeStorageDir,
       });
 
-      const opencodeDbNativeValue = process.env.OPENCODE_HOME || path.join(xdgDataHome, "opencode");
+      const opencodeDbNativeValue = process.env.OPENCODE_DATA_DIR || process.env.OPENCODE_HOME || path.join(xdgDataHome, "opencode");
       const wslOpencodeDbDir = process.platform === "win32" && wsl.shouldProbeWsl(process.env)
         ? wsl.discoverWslHome(".local/share/opencode")
         : null;
@@ -3530,6 +3573,7 @@ async function cmdSync(argv, context = {}) {
       totalBuckets === 0 &&
       !(workbuddyResult.projectBucketsQueued > 0) &&
       !(workbuddyAiResult.projectBucketsQueued > 0) &&
+      !(antigravityResult.projectBucketsQueued > 0) &&
       !workbuddyResult.projectCursorUpdated &&
       !workbuddyAiResult.projectCursorUpdated &&
       !(grokResult.projectBucketsQueued > 0) &&

@@ -7,6 +7,7 @@ import { ThemeProvider } from "./ui/foundation/ThemeProvider.jsx";
 import { useInsforgeAuth } from "./contexts/InsforgeAuthContext.jsx";
 import { LoginModalProvider } from "./contexts/LoginModalContext.jsx";
 import { getBackendBaseUrl, getLeaderboardBaseUrl } from "./lib/config";
+import { isLocalDashboardOrigin } from "./lib/local-origin";
 import { isMockEnabled } from "./lib/mock-mode";
 import { isScreenshotModeEnabled } from "./lib/screenshot-mode";
 import { useCloudUsageSync } from "./hooks/use-cloud-usage-sync";
@@ -150,9 +151,7 @@ export default function App() {
     sharePathname === "/share.html" ||
     sharePathname.startsWith("/share/");
 
-  const isLocalMode =
-    typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+  const isLocalMode = isLocalDashboardOrigin();
 
   const normalizedPath = pathname.replace(/\/+$/, "") || "/";
   useEffect(() => {

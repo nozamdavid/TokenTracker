@@ -12,14 +12,13 @@ import { SubscriptionSettingsCard } from "../ui/dashboard/components/Subscriptio
 import { LocalOnlyNotice } from "../components/LocalOnlyNotice.jsx";
 import { isMockEnabled } from "../lib/mock-data";
 import { readUsageLimitsPreloadState } from "../lib/dashboard-preload.js";
+import { isLocalDashboardOrigin } from "../lib/local-origin";
 import { useLimitAlertPrefs } from "../hooks/use-limit-alert-prefs";
 import { sendPredictiveLimitAlerts } from "../lib/limit-alerts.js";
 import { isNativeEmbed, postNativeMessage } from "../lib/native-bridge.js";
 import { listSubscriptions } from "../lib/subscription-manager-api";
 
-const IS_LOCAL_HOST =
-  typeof window !== "undefined" &&
-  (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+const IS_LOCAL_HOST = isLocalDashboardOrigin();
 
 const MACOS_NOTIFICATION_SETTINGS_URL = "x-apple.systempreferences:com.apple.preference.notifications";
 

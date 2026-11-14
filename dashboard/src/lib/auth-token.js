@@ -1,3 +1,5 @@
+import { isLocalDashboardOrigin } from "./local-origin";
+
 export function normalizeAccessToken(token) {
   if (typeof token !== "string") return null;
   const trimmed = token.trim();
@@ -103,10 +105,7 @@ export async function resolveAuthAccessTokenWithRetry(auth, options = {}) {
 
 export function isAccessTokenReady(token) {
   // 本地开发模式不需要真实 token
-  if (typeof window !== "undefined" &&
-      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
-    return true;
-  }
+  if (isLocalDashboardOrigin()) return true;
   if (typeof token === "function") return true;
   if (token && typeof token === "object") {
     if (typeof token.getAccessToken === "function") return true;

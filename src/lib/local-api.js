@@ -830,13 +830,29 @@ function isLoopbackHostname(hostname) {
   return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1" || hostname === "[::1]";
 }
 
+function getConfiguredLocalOrigin() {
+  const raw = process.env.TOKENTRACKER_LOCAL_ORIGIN;
+  if (!raw) return null;
+  try {
+    const url = new URL(String(raw));
+    if (url.protocol !== "https:" || url.username || url.password) return null;
+    return url.origin;
+  } catch (_e) {
+    return null;
+  }
+}
+
 function hasAllowedLoopbackOrigin(headers = {}) {
   const candidates = [headers.origin, headers.referer];
+  const configuredOrigin = getConfiguredLocalOrigin();
   for (const raw of candidates) {
     if (raw == null || raw === "") continue;
     try {
       const url = new URL(String(raw));
-      if (url.protocol !== "http:" || !isLoopbackHostname(url.hostname)) return false;
+      if (url.username || url.password) return false;
+      if (url.protocol === "http:" && isLoopbackHostname(url.hostname)) continue;
+      if (url.protocol === "https:" && configuredOrigin && url.origin === configuredOrigin) continue;
+      return false;
     } catch (_e) {
       return false;
     }
@@ -1773,10 +1789,6 @@ function createLocalApiHandler({ queuePath, serverVersion = null, trackerDataDir
         json(res, { error: "Cloud sync preference changed", code: "CLOUD_SYNC_CHANGED" }, 409);
         return "served";
       }
-      // The reset writes its marker before the remote wipe, so a read that
-      // started before the marker can overlap the wipe and return a partial
-      // aggregate. Re-check now that the read has finished.
-      if (cloudUsageRebuildPending()) return ACCOUNT_FALLBACK_CLOUD_REBUILD_PENDING;
       accountViewFailures.delete(failureKey);
       res.writeHead(200, {
         "Content-Type": "application/json",
@@ -1956,6 +1968,10 @@ function createLocalApiHandler({ queuePath, serverVersion = null, trackerDataDir
     if (p === "/api/local-auth") {
       if (String(req.method || "GET").toUpperCase() !== "GET") {
         json(res, { error: "Method Not Allowed" }, 405);
+        return true;
+      }
+      if (!hasAllowedLoopbackOrigin(req.headers || {})) {
+        json(res, { code: "untrusted_auth_origin", error: "Authentication requests must come from the local dashboard." }, 403);
         return true;
       }
       res.writeHead(200, {

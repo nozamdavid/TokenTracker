@@ -100,6 +100,66 @@ test("foreign pages cannot consume the one-time native OAuth callback marker", a
   }
 });
 
+test("configured HTTPS origin can read local auth and call token-protected local APIs", async (t) => {
+  const configuredOrigin = "https://davids-macbook-pro.barbel-hops.ts.net:8443";
+  const previousOrigin = process.env.TOKENTRACKER_LOCAL_ORIGIN;
+  process.env.TOKENTRACKER_LOCAL_ORIGIN = configuredOrigin;
+  t.after(() => {
+    if (previousOrigin === undefined) delete process.env.TOKENTRACKER_LOCAL_ORIGIN;
+    else process.env.TOKENTRACKER_LOCAL_ORIGIN = previousOrigin;
+  });
+
+  const { createLocalApiHandler } = require("../src/lib/local-api");
+  const handler = createLocalApiHandler({ queuePath: path.join(process.env.HOME, "queue.jsonl") });
+  const authUrl = new URL("http://127.0.0.1/api/local-auth");
+  const authHeaders = { origin: configuredOrigin };
+  const authRes = createResponse();
+  await handler(createRequest({ headers: authHeaders }), authRes, authUrl);
+  assert.equal(authRes.statusCode, 200);
+  const { token } = JSON.parse(authRes.body.toString("utf8"));
+
+  for (const origin of [
+    "https://davids-macbook-pro.barbel-hops.ts.net",
+    "https://other.barbel-hops.ts.net:8443",
+    "http://davids-macbook-pro.barbel-hops.ts.net:8443",
+  ]) {
+    const res = createResponse();
+    await handler(createRequest({ headers: { origin } }), res, authUrl);
+    assert.equal(res.statusCode, 403, `${origin} must not retrieve the local auth token`);
+  }
+
+  const mutationUrl = new URL("http://127.0.0.1/functions/tokentracker-cloud-usage-reset");
+  const acceptedRes = createResponse();
+  await handler(createRequest({ method: "GET", headers: {
+    origin: configuredOrigin,
+    "sec-fetch-site": "same-origin",
+    "x-tokentracker-local-auth": token,
+  } }), acceptedRes, mutationUrl);
+  assert.equal(acceptedRes.statusCode, 200);
+
+  for (const origin of [
+    "https://davids-macbook-pro.barbel-hops.ts.net",
+    "https://other.barbel-hops.ts.net:8443",
+    "http://davids-macbook-pro.barbel-hops.ts.net:8443",
+  ]) {
+    const res = createResponse();
+    await handler(createRequest({ method: "GET", headers: {
+      origin,
+      "sec-fetch-site": "same-origin",
+      "x-tokentracker-local-auth": token,
+    } }), res, mutationUrl);
+    assert.equal(res.statusCode, 401, `${origin} must not authorize a local mutation`);
+  }
+
+  const crossSiteRes = createResponse();
+  await handler(createRequest({ method: "GET", headers: {
+    origin: configuredOrigin,
+    "sec-fetch-site": "cross-site",
+    "x-tokentracker-local-auth": token,
+  } }), crossSiteRes, mutationUrl);
+  assert.equal(crossSiteRes.statusCode, 401);
+});
+
 function loadLocalApiWithSpawn(fakeSpawn) {
   const childProcess = require("node:child_process");
   const cloudAccount = require("../src/lib/cloud-account");

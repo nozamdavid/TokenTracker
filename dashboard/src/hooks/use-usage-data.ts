@@ -3,6 +3,7 @@ import { isAccessTokenReady, resolveAuthAccessToken } from "../lib/auth-token";
 import { formatDateLocal, formatDateUTC } from "../lib/date-range";
 import { isMockEnabled } from "../lib/mock-data";
 import { getLocalDayKey, getTimeZoneCacheKey } from "../lib/timezone";
+import { isLocalDashboardOrigin } from "../lib/local-origin";
 import {
   fetchCloudUsageDaily,
   fetchCloudUsageSummary,
@@ -114,8 +115,7 @@ export function useUsageData({
     }
   }, [storageKey]);
 
-  const isLocalMode = typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+  const isLocalMode = isLocalDashboardOrigin();
 
   const beginRequest = useLatestRequestGuard([
     baseUrl,
@@ -343,11 +343,8 @@ export function useUsageData({
       setLoading(true);
       return;
     }
-    const isLocalMode = typeof window !== "undefined" &&
-      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-    const isLocalModeCheck = typeof window !== "undefined" &&
-      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-    if (!tokenReady && !guestAllowed && !mockEnabled && !isLocalModeCheck && !useCloud) {
+    const isLocalMode = isLocalDashboardOrigin();
+    if (!tokenReady && !guestAllowed && !mockEnabled && !isLocalMode && !useCloud) {
       setDaily([]);
       setSummary(null);
       setRolling(null);

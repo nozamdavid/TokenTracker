@@ -1,3 +1,5 @@
+import { isLocalDashboardOrigin } from "./local-origin";
+
 const KEY_ENABLED = "tokentracker_cloud_sync_enabled";
 const KEY_CHANGED_AT = "tokentracker_cloud_sync_changed_at_ms";
 const KEY_DEVICE = "tokentracker_cloud_device_session_v1";
@@ -30,10 +32,8 @@ function clearLegacyStoredDeviceSession(): void {
 export function isLocalDashboardHost(): boolean {
   if (typeof window === "undefined") return false;
   const h = window.location.hostname;
-  // Mirror src/lib/local-api.js loopback handling (which includes IPv6) so the
-  // dashboard ↔ local-server contract — cloud-sync mirror, account view — holds
-  // on http://[::1] too. Browsers report IPv6 hostnames without brackets.
-  return h === "localhost" || h === "127.0.0.1" || h === "::1" || h === "[::1]";
+  // Keep IPv6 loopback support while allowing the explicitly configured server origin.
+  return isLocalDashboardOrigin() || h === "::1" || h === "[::1]";
 }
 
 /**
@@ -60,14 +60,14 @@ export function setCloudSyncEnabled(enabled: boolean): void {
     clearCloudDeviceSession();
     setCloudUsageReady(false);
   }
-  // Mirror the toggle to the local CLI server (best-effort, localhost only) so
+  // Mirror the toggle to the local CLI server (best-effort, local dashboard only) so
   // the auth-unaware native popover can gate its cross-device "account view" on
   // the same preference. The dashboard remains the source of truth; this is a
   // one-way push and never blocks the toggle.
   mirrorCloudSyncPrefToLocalServer(enabled);
   // Notify the SAME tab. AccountViewContext listens for this event (and the
   // cross-tab `storage` event) to recompute accountView. Without it, toggling
-  // cloud sync on localhost would not switch the dashboard to the cross-device
+  // cloud sync on the local dashboard would not switch the dashboard to the cross-device
   // cloud view until a manual reload — the multi-machine view stayed invisible
   // on the most common path. (Event name mirrors CLOUD_SYNC_CHANGE_EVENT in
   // AccountViewContext.jsx; dispatched here to avoid an import cycle.)
@@ -113,7 +113,7 @@ async function postCloudSyncPref(enabled: boolean, changedAtMs: number): Promise
  * Push the dashboard's current cloud-sync preference to the local CLI server
  * once on load, so the native popover's account view reflects the persisted
  * toggle even when the user never re-toggles it this session. No-op off
- * localhost. Best-effort.
+ * the local dashboard origin. Best-effort.
  */
 export function syncCloudSyncPrefToLocalServer(): Promise<void> {
   return mirrorCloudSyncPrefToLocalServer(getCloudSyncEnabled());

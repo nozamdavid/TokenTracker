@@ -14,6 +14,7 @@ import {
 } from "./mock-data";
 import { getInsforgeRemoteUrl, getInsforgeAnonKey } from "./insforge-config";
 import { isValidJwtShape, resolveAuthAccessToken, type AuthTokenProvider } from "./auth-token";
+import { isLocalDashboardOrigin } from "./local-origin";
 import { getLocalApiAuthHeaders } from "./local-api-auth";
 import { expandHeatmapCompact } from "./heatmap-compact";
 import { functionUrlFor, fetchFunctionResponse } from "./function-url";
@@ -174,10 +175,7 @@ const USAGE_TO_ACCOUNT_SLUG: Record<string, string> = {
 };
 
 export function isLocalhostHost() {
-  return (
-    typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
-  );
+  return isLocalDashboardOrigin();
 }
 
 async function fetchLocalJson(slug: string, params?: AnyRecord, options?: AnyRecord) {
