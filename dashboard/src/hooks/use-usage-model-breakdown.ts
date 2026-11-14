@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isAccessTokenReady, resolveAuthAccessToken } from "../lib/auth-token";
 import { isMockEnabled } from "../lib/mock-data";
 import { getTimeZoneCacheKey } from "../lib/timezone";
+import { isLocalDashboardOrigin } from "../lib/local-origin";
 import { fetchCloudUsageModelBreakdown, getUsageModelBreakdown } from "../lib/api";
 import { useLatestRequestGuard } from "./use-latest-request-guard";
 
@@ -71,8 +72,7 @@ export function useUsageModelBreakdown({
     }
   }, [storageKey]);
 
-  const isLocalMode = typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+  const isLocalMode = isLocalDashboardOrigin();
 
   const beginRequest = useLatestRequestGuard([
     baseUrl,

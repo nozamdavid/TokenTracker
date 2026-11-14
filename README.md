@@ -245,7 +245,7 @@ An Arch `PKGBUILD` for a local pacman install lives in `TokenTrackerLinux/packag
 | **Cursor** | ✅ Auto | API + SQLite auth token |
 | **Kiro** | ✅ Auto | SQLite + JSONL hybrid |
 | **Gemini CLI** | ✅ Auto | SessionEnd hook |
-| **OpenCode** | ✅ Auto | Plugin system + SQLite |
+| **OpenCode** | ✅ Auto | Plugin system + passive reader for OpenCode's global SQLite and legacy message files (`~/.local/share/opencode` by default) |
 | **OpenSquilla** | ✅ Auto | Passive SQLite reader for finalized model usage from Desktop (`%APPDATA%\@opensquilla\desktop-electron\opensquilla\state\sessions.db`) or CLI (`~/.opensquilla/state/sessions.db`); reads timestamps, model IDs, and token counters only. Override with `TOKENTRACKER_OPENSQUILLA_DB` |
 | **OpenClaw** | ✅ Auto | Session plugin |
 | **Every Code** | ✅ Auto | TOML notify hook |
@@ -260,7 +260,7 @@ An Arch `PKGBUILD` for a local pacman install lives in `TokenTrackerLinux/packag
 | **Grok Build** (xAI) | ✅ Auto | SessionEnd hook + passive `updates.jsonl` / `signals.json` scan (`~/.grok/sessions/**/`) |
 | **Kilo CLI** (kilo.ai) | ✅ Auto | Passive SQLite reader (`~/.local/share/kilo/kilo.db`, OpenCode-fork schema) |
 | **Kilo Code** (VS Code extension) | ✅ Auto | Passive `ui_messages.json` reader (Cursor/Code/CodeBuddy/Windsurf globalStorage) |
-| **Antigravity** | ✅ Auto | Passive transcript reader (`~/.gemini/{antigravity,antigravity-ide,antigravity-cli}/brain/**/transcript.jsonl`); see [quota credentials and Linux keyring setup](docs/antigravity-limits.md). Disable quota lookup with `TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA=1` |
+| **Antigravity** | ✅ Auto | Passive readers for Gemini brain transcripts and T3 conversation databases (`~/.t3/userdata/providers/antigravity/**/conversations/*.db`); see [quota credentials and Linux keyring setup](docs/antigravity-limits.md). Disable quota lookup with `TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA=1` |
 | **OmO** | ✅ Auto | Passive reader (`~/.omo/agent/sessions/**/*.jsonl`, subagent transcripts included). Same session format as oh-my-pi but a separate install root, cursor namespace and source label, so both can be tracked side by side. Reasoning tokens are reported as a subset of output (Codex convention) and are never billed twice |
 | **pi** (`@mariozechner/pi-coding-agent`) | ✅ Auto | Passive reader (`~/.pi/agent/sessions/**/*.jsonl`, pi-subagents fork transcripts folded in) + Sessions browser (`pi --session <id>` resume) |
 | **Dots** | ✅ Auto | Routed through pi's provider split (`pi-dots` source, same passive reader) — no separate hook |
@@ -360,6 +360,8 @@ TokenTracker processes your usage data locally. It never collects or uploads pro
 | **Auditable** | Open source. Check [`src/lib/rollout.js`](src/lib/rollout.js) — only numbers, timestamps, and model names are extracted. |
 | **Transparent network activity** | Fully documented in the [Privacy Policy](docs/PRIVACY.md). Default requests are limited to direct provider quota checks (using credentials already on your machine), GitHub star counts, update checks, pricing data refreshes (`raw.githubusercontent.com`), and anonymous telemetry (daily heartbeat + PostHog pageviews, plus optional Sentry error reports when a DSN is configured — all disabled with `TOKENTRACKER_NO_TELEMETRY=1` or `DO_NOT_TRACK=1`). Telemetry never includes tokens, models, prompts, or code. |
 
+TokenTracker reads Antigravity usage directly from T3's conversation databases; it does not depend on T3's derived usage-scan cache or its 92-day cache retention. Source history remains subject to T3's own database retention, which may limit backfill. Antigravity costs are estimated from model rates because T3 does not report a billed cost. Claude, Codex, and Muse continue to use their native session roots (`~/.claude`, `~/.codex`, and `~/.local/share/muse`); OpenCode history comes from its global data directory, not a T3 usage cache.
+
 ---
 
 ## 📦 Configuration
@@ -377,6 +379,9 @@ Most users never need this — defaults are sensible. For advanced setups:
 | `CODEX_HOME` | Override Codex CLI directory | `~/.codex` |
 | `TOKENTRACKER_ACODE_HOME` | Override AStudio directory | `~/.acode` |
 | `GEMINI_HOME` | Override Gemini CLI directory | `~/.gemini` |
+| `TOKENTRACKER_T3_STATE_DIR` | Override T3's state directory for direct Antigravity database reading | `~/.t3/userdata` |
+| `OPENCODE_DATA_DIR` | Override OpenCode's global data directory for passive history reading (takes priority over `OPENCODE_HOME`) | `$XDG_DATA_HOME/opencode` or `~/.local/share/opencode` |
+| `OPENCODE_HOME` | Legacy OpenCode data directory override | `$XDG_DATA_HOME/opencode` or `~/.local/share/opencode` |
 | `TOKENTRACKER_GROK_HOME` | Override Grok Build directory for the Grok integration and Skills Manager | `~/.grok` |
 | `GROK_HOME` | Legacy Grok Build directory override, used when `TOKENTRACKER_GROK_HOME` is unset | `~/.grok` |
 | `TOKENTRACKER_ANTIGRAVITY_HOME` | Force a single Antigravity Skills directory (auto-detects `~/.gemini/antigravity` + `~/.gemini/antigravity-ide` otherwise) | auto |
@@ -387,6 +392,8 @@ Most users never need this — defaults are sensible. For advanced setups:
 | `TOKENTRACKER_DEVIN_DB` | Override the Devin CLI database file used by the passive usage reader | `$XDG_DATA_HOME/devin/cli/sessions.db` |
 | `TOKENTRACKER_MINIMAX_HOME` | Override the MiniMax Code data directory used by the passive usage reader | `~/.minimax` |
 | `TOKENTRACKER_COMMANDCODE_HOME` | Override the Command Code (`cmd`) data directory used by the passive session reader | `~/.commandcode` |
+
+For an HTTPS reverse proxy to a local dashboard, set `VITE_TOKENTRACKER_LOCAL_ORIGIN` when building the dashboard and `TOKENTRACKER_LOCAL_ORIGIN` in the server process to the same origin, including any non-default port. This enables local dashboard behavior only for that exact origin.
 
 ### Offline usage transfer
 

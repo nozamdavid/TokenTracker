@@ -15,9 +15,9 @@ import {
  * (per-device, via /functions/tokentracker-usage-*).
  *
  * Two host modes:
- *   - localhost dashboard: signed-in user can opt in via Settings →
+ *   - local dashboard: signed-in user can opt in via Settings →
  *     Account → Cloud sync toggle. When on, reads switch to cloud.
- *   - non-localhost (e.g. www.tokentracker.cc): the local CLI endpoints
+ *   - public deployment (e.g. www.tokentracker.cc): the local CLI endpoints
  *     are unreachable, so signed-in users are pinned to cloud reads. A
  *     signed-out visitor on the public host has nothing to render — the
  *     consumer is expected to gate on `signedIn` before calling hooks.
@@ -122,7 +122,7 @@ export function AccountViewProvider({ children }) {
 
   // While auth is still resolving, `signedIn` is false, so `accountView`
   // defaults to false (local). For a user who will land on cloud (public host,
-  // or cloud-sync opted in on localhost), that makes the dashboard paint local
+  // or cloud-sync opted in on the local dashboard), that makes the dashboard paint local
   // data on first render and then re-paint cloud data once auth resolves — the
   // "double flash". `resolving` lets dependent hooks hold a loading state
   // instead of committing the soon-to-be-discarded local fetch. We only gate

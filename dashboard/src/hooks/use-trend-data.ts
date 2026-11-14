@@ -3,6 +3,7 @@ import { isAccessTokenReady, resolveAuthAccessToken } from "../lib/auth-token";
 import { formatDateLocal, formatDateUTC } from "../lib/date-range";
 import { isMockEnabled } from "../lib/mock-data";
 import { getLocalDayKey, getTimeZoneCacheKey } from "../lib/timezone";
+import { isLocalDashboardOrigin } from "../lib/local-origin";
 import {
   fetchCloudUsageDaily,
   fetchCloudUsageHourly,
@@ -124,8 +125,7 @@ export function useTrendData({
     }
   }, [storageKey]);
 
-  const isLocalMode = typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+  const isLocalMode = isLocalDashboardOrigin();
 
   const beginRequest = useLatestRequestGuard([
     baseUrl,

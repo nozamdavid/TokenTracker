@@ -12,6 +12,7 @@ import {
   normalizeAccessToken,
   resolveAuthAccessToken,
 } from "../lib/auth-token";
+import { isLocalDashboardOrigin } from "../lib/local-origin";
 import { copy } from "../lib/copy";
 import { useLocale } from "../hooks/useLocale.js";
 import { useCurrency } from "../hooks/useCurrency.js";
@@ -267,8 +268,7 @@ export function DashboardPage({
   ]);
 
   // 本地模式判断
-  const isLocalMode = typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+  const isLocalMode = isLocalDashboardOrigin();
 
   useEffect(() => {
     // 本地模式：跳过登录检查，直接获取 userStatus

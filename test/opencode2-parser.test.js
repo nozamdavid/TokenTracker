@@ -328,6 +328,83 @@ if (sqlite) {
     });
   });
 
+  test("OpenCode SQLite reader returns usage metadata without message content", async () => {
+    await withTmp(async (tmp) => {
+      const v1Path = path.join(tmp, "v1.db");
+      const v1Message = {
+        ...v1AssistantMessage({ id: "msg_v1_metadata", sessionID: "ses_v1_metadata", input: 21, output: 8 }),
+        cost: 0.125,
+        path: { cwd: "/tmp/v1-project" },
+        body: "V1_SENTINEL_RAW_BODY",
+        parts: [{ type: "text", text: "V1_SENTINEL_PART" }],
+      };
+      const v1Correction = {
+        ...v1AssistantMessage({ id: "msg_v1_zero", sessionID: "ses_v1_metadata", providerID: "qianfanpersonalquota", input: 0, output: 0 }),
+        time: { created: Date.parse("2026-08-01T10:01:00.000Z"), completed: Date.parse("2026-08-01T10:01:05.000Z") },
+        body: "V1_ZERO_SENTINEL",
+      };
+      buildFixtureDb(v1Path, { type: "A", messages: [v1Message, v1Correction] });
+
+      const v2Path = path.join(tmp, "v2.db");
+      const v2Message = {
+        ...v2AssistantMessage({ id: "msg_v2_metadata", sessionID: "ses_v2_metadata", input: 34, output: 13 }),
+        cost: 0.25,
+        body: "V2_SENTINEL_RAW_BODY",
+        parts: [{ type: "text", text: "V2_SENTINEL_PART" }],
+      };
+      const v2Correction = {
+        ...v2AssistantMessage({ id: "msg_v2_zero", sessionID: "ses_v2_metadata", providerID: "qianfanpersonalquota", input: 0, output: 0 }),
+        time: { created: Date.parse("2026-08-01T10:01:00.000Z"), completed: Date.parse("2026-08-01T10:01:05.000Z") },
+        body: "V2_ZERO_SENTINEL",
+      };
+      buildFixtureDb(v2Path, {
+        type: "C",
+        sessions: [{ id: "ses_v2_metadata", directory: "/tmp/v2-project" }],
+        v2Messages: [v2Message, v2Correction],
+      });
+
+      const includeZeroMessage = (message) => {
+        const provider = message.data?.providerID || message.data?.model?.providerID;
+        return String(provider || "").toLowerCase() === "qianfanpersonalquota";
+      };
+      const v1Default = readOpencodeDbMessages(v1Path);
+      const v1Rows = readOpencodeDbMessages(v1Path, {}, { includeZeroMessage });
+      const v2Default = readOpencodeDbMessages(v2Path);
+      const v2Rows = readOpencodeDbMessages(v2Path, {}, { includeZeroMessage });
+
+      assert.equal(v1Default.length, 1);
+      assert.equal(v2Default.length, 1);
+      assert.equal(v1Rows.length, 2, "v1 zero correction remains available to an opting-in caller");
+      assert.equal(v2Rows.length, 2, "v2 zero correction remains available to an opting-in caller");
+      assert.equal(v1Rows[0].data.tokens.input, 21);
+      assert.equal(v1Rows[0].data.modelID, "claude-sonnet-4");
+      assert.equal(v1Rows[0].data.providerID, "anthropic");
+      assert.equal(v1Rows[0].data.cost, 0.125);
+      assert.equal(v1Rows[0].data.time.created, Date.parse("2026-08-01T10:00:00.000Z"));
+      assert.equal(v1Rows[0].data.path.cwd, "/tmp/v1-project");
+      assert.equal(v1Rows[1].data.tokens.input, 0);
+      assert.equal(v1Rows[1].data.providerID, "qianfanpersonalquota");
+
+      assert.equal(v2Rows[0].data.tokens.output, 13);
+      assert.deepEqual(v2Rows[0].data.model, { id: "x-preview-f-free", providerID: "opencode" });
+      assert.equal(v2Rows[0].data.cost, 0.25);
+      assert.equal(v2Rows[0].data.time.completed, Date.parse("2026-08-01T10:00:05.000Z"));
+      assert.equal(v2Rows[0].data.path.cwd, "/tmp/v2-project");
+      assert.equal(v2Rows[1].data.tokens.output, 0);
+      assert.equal(v2Rows[1].data.model.providerID, "qianfanpersonalquota");
+
+      const returnedData = JSON.stringify([...v1Rows, ...v2Rows]);
+      for (const sentinel of [
+        "V1_SENTINEL_RAW_BODY", "V1_SENTINEL_PART", "V1_ZERO_SENTINEL",
+        "V2_SENTINEL_RAW_BODY", "V2_SENTINEL_PART", "V2_ZERO_SENTINEL",
+      ]) {
+        assert.equal(returnedData.includes(sentinel), false, `${sentinel} must not reach the reader output`);
+      }
+      assert.equal(Object.hasOwn(v1Rows[0].data, "parts"), false);
+      assert.equal(Object.hasOwn(v2Rows[0].data, "parts"), false);
+    });
+  });
+
   test("readOpencodeDbMessages keeps cache-only usage in v1 and v2", async () => {
     await withTmp(async (tmp) => {
       const v1Path = path.join(tmp, "v1.db");

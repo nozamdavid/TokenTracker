@@ -5622,9 +5622,51 @@ function opencodeDbIncrementalPredicate(alias, watermark) {
   return clauses.length > 0 ? ` AND (${clauses.join(" OR ")})` : "";
 }
 
+function buildOpencodeMetadataJson(dataColumn, { includeModel = false } = {}) {
+  const number = (field) =>
+    `CASE WHEN json_type(${dataColumn}, '$.${field}') IN ('integer', 'real') ` +
+    `THEN json_extract(${dataColumn}, '$.${field}') END`;
+  const string = (field) =>
+    `CASE WHEN json_type(${dataColumn}, '$.${field}') = 'text' ` +
+    `THEN json_extract(${dataColumn}, '$.${field}') END`;
+  const model = includeModel
+    ? `, 'model', CASE
+        WHEN json_type(${dataColumn}, '$.model') = 'object' THEN json_object(
+          'id', ${string("model.id")},
+          'providerID', ${string("model.providerID")}
+        )
+        WHEN json_type(${dataColumn}, '$.model') = 'text' THEN json_extract(${dataColumn}, '$.model')
+      END`
+    : "";
+  return `json_object(
+    'tokens', json_object(
+      'input', ${number("tokens.input")},
+      'output', ${number("tokens.output")},
+      'reasoning', ${number("tokens.reasoning")},
+      'cache', json_object(
+        'read', ${number("tokens.cache.read")},
+        'write', ${number("tokens.cache.write")}
+      )
+    ),
+    'cost', ${number("cost")},
+    'modelID', ${string("modelID")},
+    'modelId', ${string("modelId")},
+    'providerID', ${string("providerID")},
+    'providerId', ${string("providerId")},
+    'provider', ${string("provider")},
+    'id', ${string("id")},
+    'sessionID', ${string("sessionID")},
+    'time', json_object(
+      'created', ${number("time.created")},
+      'completed', ${number("time.completed")}
+    ),
+    'path', json_object('cwd', ${string("path.cwd")})${model}
+  )`;
+}
+
 function buildV1Sql(watermark = null) {
   return (
-    `SELECT rowid AS row_id, id, session_id, time_updated, data FROM message ` +
+    `SELECT rowid AS row_id, id, session_id, time_updated, ${buildOpencodeMetadataJson("data", { includeModel: true })} AS data FROM message ` +
     `WHERE json_extract(data, '$.role') = 'assistant'` +
     `${opencodeDbIncrementalPredicate("", watermark)} ORDER BY time_created ASC`
   );
@@ -5643,7 +5685,7 @@ function buildV2Sql(sessionTable, watermark = null) {
     : "";
   return (
     `SELECT sm.rowid AS row_id, sm.id AS id, sm.session_id AS session_id, sm.time_updated AS time_updated, ` +
-    `${directorySelect}sm.data AS data ` +
+    `${directorySelect}${buildOpencodeMetadataJson("sm.data", { includeModel: true })} AS data ` +
     `FROM session_message sm ${joinClause}` +
     `WHERE sm.type = 'assistant'` +
     `${opencodeDbIncrementalPredicate("sm.", watermark)} ORDER BY sm.time_created ASC`
@@ -5661,7 +5703,7 @@ function detectOpencodeMessageLayout(dbPath, sqliteOptions = {}, { propagateRead
       dbPath,
       `SELECT (SELECT 1 FROM session_message LIMIT 1) AS hasRows,
               (SELECT name FROM sqlite_master WHERE name IN ('session','session_v2') ORDER BY name DESC LIMIT 1) AS sessionTable`,
-      { label: "OpenCode", timeout: 10_000, maxBuffer: 1024 * 1024, ...sqliteOptions, throwOnReadFailure: true },
+      { label: "OpenCode", timeout: 10_000, maxBuffer: 1024 * 1024, ...sqliteOptions, readOnly: true, throwOnReadFailure: true },
     );
   } catch (error) {
     // A missing session_message table is the normal v1-only miss; with
@@ -5769,6 +5811,7 @@ function readOpencodeDbMessagesIncremental(dbPath, previousCursor = null, sqlite
         maxBuffer: 50 * 1024 * 1024,
         timeout: 30_000,
         ...sqliteOptions,
+        readOnly: true,
         throwOnReadFailure: true,
       });
       return Array.isArray(rows) ? rows : [];

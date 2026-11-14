@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { isAccessTokenReady, resolveAuthAccessToken } from "../lib/auth-token";
 import { isMockEnabled } from "../lib/mock-data";
+import { isLocalDashboardOrigin } from "../lib/local-origin";
 import { getProjectUsageSummary } from "../lib/api";
 import { useLatestRequestGuard } from "./use-latest-request-guard";
 
@@ -23,8 +24,7 @@ export function useProjectUsageSummary({
   const mockEnabled = isMockEnabled();
   const tokenReady = isAccessTokenReady(accessToken);
 
-  const isLocalMode = typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+  const isLocalMode = isLocalDashboardOrigin();
 
   const beginRequest = useLatestRequestGuard([
     baseUrl,

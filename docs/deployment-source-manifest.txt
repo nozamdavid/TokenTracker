@@ -1,0 +1,9 @@
+source_url=https://davids-macbook-pro.barbel-hops.ts.net:8444/tokentracker-source.tar.gz
+sha256=40ff848f186fa9ef6e1757cb8fe57ce4dc690419120ea271ce2af0776f2aa105
+size_bytes=9085320
+verified_at=2026-11-13T23:15:30+01:00
+patched_file=app-40ff848f/src/lib/t3-antigravity.js
+patched_file_sha256=b91b87c8377951df19c0403020322d06e4186e70cb1cdd3c1a1eb215678d18e1
+runtime_helper=app-40ff848f/scripts/run-local-sync.cjs
+runtime_helper_sha256=ee6cfaed869cd0b6f5b79aaaa32aa44600c7cef10b7eddaceb0c03b754566dd3
+project_root=/home/david/.t3/projects/tokentracker

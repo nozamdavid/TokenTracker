@@ -4,6 +4,7 @@ const fs = require("node:fs/promises");
 const fssync = require("node:fs");
 const pkg = require("../../package.json");
 const { resolveDumateDbPaths } = require("../lib/dumate");
+const { resolveT3AntigravityDbPaths } = require("../lib/t3-antigravity");
 
 const { readJson } = require("../lib/fs");
 const { readCursorStateSummary } = require("../lib/cursor-store");
@@ -125,6 +126,7 @@ const { resolveInstallPaths, resolveZcodeNativeDbPath, resolveMimoNativeDbPath }
 const {
   describeScanRootOrigin,
   describeScanRootState,
+  expandHome,
   hasAnyScanChild,
   resolveEnvRoot,
   resolveScanRoots,
@@ -663,7 +665,7 @@ async function cmdStatus(argv = []) {
   const claudeScienceDbPath = claudeScienceActive.join(" | ");
 
   // OpenCode (JSON files + SQLite DB) — passive scan of storage/message/ and opencode.db.
-  const opencodeStorageNativeValue = process.env.OPENCODE_HOME || path.join(xdgDataHome, "opencode");
+  const opencodeStorageNativeValue = process.env.OPENCODE_DATA_DIR || process.env.OPENCODE_HOME || path.join(xdgDataHome, "opencode");
   const wslOpencodeStorageDir = process.platform === "win32" && shouldProbeWsl(process.env)
     ? discoverWslHome(".local/share/opencode")
     : null;
@@ -673,7 +675,7 @@ async function cmdStatus(argv = []) {
   });
   const opencodeStorageActive = formatResolvedPaths(opencodeStoragePaths);
 
-  const opencodeDbNativeValue = process.env.OPENCODE_HOME || path.join(xdgDataHome, "opencode");
+  const opencodeDbNativeValue = process.env.OPENCODE_DATA_DIR || process.env.OPENCODE_HOME || path.join(xdgDataHome, "opencode");
   const wslOpencodeDbDir = process.platform === "win32" && shouldProbeWsl(process.env)
     ? discoverWslHome(".local/share/opencode")
     : null;
@@ -706,6 +708,9 @@ async function cmdStatus(argv = []) {
 
   // Antigravity (passive brains scan)
   const antigravityActive = [];
+  const t3AntigravityDbPaths = resolveT3AntigravityDbPaths({ home, env: process.env });
+  const t3StateDir = expandHome(process.env.TOKENTRACKER_T3_STATE_DIR, home)
+    || path.join(home, ".t3", "userdata");
   if (geminiPaths.native) {
     const dirs = [
       path.join(geminiPaths.native, "antigravity", "brain"),
@@ -727,6 +732,11 @@ async function cmdStatus(argv = []) {
     if (dirs.some(d => { try { return fssync.existsSync(d); } catch (_) { return false; } })) {
       antigravityActive.push(`WSL: ${geminiPaths.wsl}`);
     }
+  }
+  if (t3AntigravityDbPaths.length > 0) {
+    antigravityActive.push(
+      `T3 store: ${path.join(t3StateDir, "providers", "antigravity")} (${t3AntigravityDbPaths.length} DBs)`,
+    );
   }
   const antigravityInstalled = antigravityActive.length > 0;
 
@@ -1402,7 +1412,7 @@ async function cmdStatus(argv = []) {
         ? `- Gemini CLI: sessions found (${geminiCliActive.join(" | ")})`
         : null,
       antigravityInstalled
-        ? `- Antigravity: brain found (${antigravityActive.join(" | ")})`
+        ? `- Antigravity: passive reader (${antigravityActive.join(" | ")})`
         : null,
       (!geminiCliInstalled && !antigravityInstalled && geminiInstalledStatus)
         ? `- Gemini CLI / Antigravity: home found (${geminiActive.join(" | ")})`
